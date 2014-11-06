@@ -15,7 +15,7 @@ def connect():
     cursor = con.cursor()
     sql = '''SELECT calldate, src, duration, userfield
              FROM `cdr`
-             WHERE dst LIKE '1200'
+             WHERE dst LIKE 'YOUR EXTENSION'
              AND TO_DAYS(NOW()) - TO_DAYS(calldate) <= 30
              ORDER BY  `cdr`.`calldate` DESC
              LIMIT 3000'''
