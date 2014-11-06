@@ -1,0 +1,83 @@
+# -*- coding: utf-8 -*-
+__author__ = 'vorlog'
+
+from option import *
+import MySQLdb
+import xlsxwriter
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import Encoders
+
+def connect():
+    con =  MySQLdb.connect(host=server, user=username, passwd=password, db=db)
+    cursor = con.cursor()
+    sql = '''SELECT calldate, src, duration, userfield
+             FROM `cdr`
+             WHERE dst LIKE '1200'
+             AND TO_DAYS(NOW()) - TO_DAYS(calldate) <= 30
+             ORDER BY  `cdr`.`calldate` DESC
+             LIMIT 3000'''
+    cursor.execute(sql)
+    data = cursor.fetchall()
+    statistics=[]
+    for rec in data:
+        stat = {}
+        calldate, src, duration, userfield = rec
+        stat['date']=str(calldate)
+        stat['src']=src
+        stat['duration'] = duration
+        stat['userfield'] = userfield
+        statistics.append(stat)
+    con.close()
+
+    return statistics
+
+
+def export_xls(filename, statistics):
+    workbook = xlsxwriter.Workbook(filename)
+    worksheet = workbook.add_worksheet()
+    
+    style = workbook.add_format({'bold':True})
+    fields = ('Calldate', 'Source', 'Duration', 'Userfield')   
+
+    for i, field in enumerate(fields):
+        worksheet.write(0,i,field,style)
+
+    fields_stat = ('date','src', 'duration', 'userfield')
+    for row, statistic in enumerate(statistics, start=1):
+        for col, field in enumerate(fields_stat):
+            worksheet.write(row,col,statistic[field])
+
+    workbook.close()
+
+def send_to_mail():
+    msg = MIMEMultipart()
+    msg['Subject'] = 'Call Detail \'8-800\''
+    msg['From'] = email_from
+    msg['To']=','.join(recipients)
+
+    filename = "statistics.xlsx"
+    f = file(filename)
+    attachment = MIMEBase('application','vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    attachment.set_payload(f.read())
+    f.close()
+    Encoders.encode_base64(attachment)
+    attachment.add_header('Content-Disposition', 'attachment', filename=filename)
+    msg.attach(attachment)
+
+    s = smtplib.SMTP(smtp_server)
+    s.login(username, passwd)
+    s.sendmail(email_from, recipients, msg.as_string())
+    s.quit()
+
+
+def main():
+    db = connect()
+    export_xls('statistics.xlsx', db)
+    send_to_mail()
+    
+
+if __name__ == "__main__":
+    main()
